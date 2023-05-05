@@ -30,7 +30,12 @@ function model_fair_psdd(::Type{FairPC}, train_x::FairDataset, valid_x::FairData
         log_opts=log_opts1)
     
     predict_all_circuits(NlatPC, nlat_result_circuits, log_opts1, train_x1, valid_x1, test_x1)
-       
+    # call our own jl 
+    # for sampled instanes:
+    # generate dataset for a given K - k times
+    # marginal_flows query -> save out put to a unique PREDICT_EXAMPLE_HEADER
+    # 
+    
 
     # parameter learning
     train_x2, valid_x2, test_x2 = convert2latent(train_x, valid_x, test_x)
