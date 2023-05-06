@@ -1,4 +1,4 @@
-# Learn Fair PC
+# Compare impact of sufficient explanations of instances on Fair and nonLatent PC
 
 This repo contains the code and experiments from the paper "[Group Fairness by Probabilistic Modeling with Latent Fair Decisions](http://starai.cs.ucla.edu/papers/ChoiAAAI21.pdf)", published in AAAI 2021. Refer to that repository for more details.
 
