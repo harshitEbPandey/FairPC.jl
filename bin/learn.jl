@@ -42,7 +42,7 @@ function main()
     # flush(io)
 
     try
-        @suppress_out learn(name, SV;
+        learn(name, SV;
             outdir=outdir,
             save_step=save_step,
             seed=seed,
@@ -69,6 +69,7 @@ function main()
 
     catch e
         @error "Error! Program terminated unexpectedly."
+        println(e)
         with_logger(SimpleLogger(stdout)) do
             @error "Error! Program terminated unexpectedly in args.\n" arg_str
         end

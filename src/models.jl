@@ -2,8 +2,128 @@ using LinearAlgebra
 using Statistics
 using Random
 using Dates
+using Combinatorics
+using Random
 
 export model_fair_psdd, train_fair_psdd, learn, learn_test, fair_pc_para_learn_from_file
+
+function convert_k(data)
+    data[!,:x9] = fill(missing, size(data,1))
+    data
+end
+function create_dataframe(inst::Array{Bool, 1}, k::Int)
+    n = length(inst)
+    println("N is $n")
+    m = binomial(n, k)
+    println("M is $m")
+    indices = collect(combinations(1:n, k))
+    data = Matrix{Union{Missing, Bool}}(missing, m, n)
+    for i in 1:m
+        println("Here:")
+        for j in indices[i]
+            data[i, j] = inst[j]
+        end
+        print("Data $data")
+    end
+    return DataFrame(data, :auto)
+end
+
+function get_query(test_x1::FairDataset) 
+    sample_frac = 0.1
+    n_rows = nrow(test_x1.data)
+    # randomly select rows without replacement
+    one_df = filter(row -> row.x8 == 1, test_x1.data)
+    n_rows = nrow(one_df)
+    one_rows_idx = randperm(n_rows)[1:25]
+    zero_df = filter(row -> row.x8 == 0, test_x1.data)
+    n_rows = nrow(zero_df)
+    zero_rows_idx = randperm(n_rows)[1:25]
+    rows_idx = vcat(one_rows_idx, zero_rows_idx)
+    # select the rows from the DataFrame
+    sample_df = test_x1.data[rows_idx, :]
+
+    data_mat = Matrix(sample_df)
+    outdir = "/Users/sauravanchlia/Fair_ML/PRL/prod/FairPC.jl/analysis/data/latent_variable"
+    list_of_dfs = Vector{DataFrame}()
+
+    for k in [3,4,5]
+        res = create_dataframe(data_mat[1,1:7],k)
+        res[!,:x8] = fill(data_mat[1,8:8][1], size(res,1))
+        for i in 2:size(data_mat, 1)
+            inst = data_mat[i,1:7]
+            perms = create_dataframe(inst,k)
+            perms[!,:x8] = fill(data_mat[1,8:8][1], size(perms,1))
+            res = vcat(res,perms)
+        end
+        push!(list_of_dfs, res)
+        CSV.write(joinpath(outdir, "$(k)_test.csv"), res)
+    end
+    list_of_dfs
+end
+
+# k_3, k_4, k_5 = get_query(train_x1)
+
+
+
+
+function prediction_bottom(fairpc::StructType, fairdata, flag)
+    println("Entering bottom of the pile")
+    @inline get_node_id(id::⋁NodeIds) = id.node_id
+    @inline get_node_id(id::⋀NodeIds) = @assert false
+    results = Dict()
+    data = fairdata
+
+    # actual_label = copy(fairdata[!,:x8])
+    # sensitive_label = data[:, :x4]
+    data = reset_end_missing(data)
+    println("70: marked missing. $data")
+    _, flows, node2id = marginal_flows(fairpc.pc, data)
+    println("got the flows")
+    if fairpc isa NonLatentStructType
+        D = get_node_id(node2id[node_D(fairpc)])
+        n_D = get_node_id(node2id[node_not_D(fairpc)])
+        P_D = exp.(flows[:, D])
+        # @assert all(flows[:, D] .<= 0.0)
+        @assert all(P_D .+ exp.(flows[:, n_D]) .≈ 1.0)
+        println("78: works")
+        P_D = min.(1.0, P_D)
+        println("will it work ?")
+        # P(D|E), 
+        results["P(D|e)"] = P_D
+        println("81 saving")
+        results["P(D|e)"] = P_D
+    end
+
+    if fairpc isa LatentStructType
+        Df = get_node_id(node2id[node_Df(fairpc)])
+        n_Df = get_node_id(node2id[node_not_Df(fairpc)])
+        P_Df = exp.(flows[:, Df])
+        @assert all(P_Df .+ exp.(flows[:, n_Df]) .≈ 1.0)
+        # @assert all(flows[:, Df] .<= 0.0)
+        P_Df = min.(1.0, P_Df)    
+        results["P(Df|e)"] = P_Df
+    end
+
+    # results["D"] = Int8.(actual_label)
+    # results["S"] = Int8.(sensitive_label)
+    
+    CSV.write("$(flag)_csv", results)
+
+end
+
+function predict_all_se(T, result_circuits, log_opts, train_x, test_x, flag)
+    for (key, value) in result_circuits
+        dir = joinpath(log_opts["outdir"], key)
+        (pc, vtree) = value
+        if !isdir(dir)
+            mkpath(dir)
+        end
+        run_fairpc = T(pc, vtree, train_x.S, train_x.D)
+        println("Does not fail in run_fairpc")
+        prediction_bottom(run_fairpc,test_x,flag)
+    end
+end
+
 
 function model_fair_psdd(::Type{FairPC}, train_x::FairDataset, valid_x::FairDataset, test_x::FairDataset;
                             struct_iters,
@@ -30,8 +150,16 @@ function model_fair_psdd(::Type{FairPC}, train_x::FairDataset, valid_x::FairData
         log_opts=log_opts1)
     
     predict_all_circuits(NlatPC, nlat_result_circuits, log_opts1, train_x1, valid_x1, test_x1)
-       
+    # call our own jl 
+    # for sampled instanes:
+    # generate dataset for a given K - k times
+    # marginal_flows query -> save out put to a unique PREDICT_EXAMPLE_HEADER
+    k_3, k_4, k_5 = get_query(train_x1)
+    predict_all_se(NlatPC, nlat_result_circuits, log_opts, train_x1, k_3, "3")
+    predict_all_se(NlatPC, nlat_result_circuits, log_opts, train_x1, k_4, "4")
+    predict_all_se(NlatPC, nlat_result_circuits, log_opts, train_x1, k_5, "5")
 
+    println("Done:39")
     # parameter learning
     train_x2, valid_x2, test_x2 = convert2latent(train_x, valid_x, test_x)
     pc, vtree = reload_learned_pc(nlat_results, "max-ll"; opts=log_opts1, name=train_x.name)
@@ -47,7 +175,10 @@ function model_fair_psdd(::Type{FairPC}, train_x::FairDataset, valid_x::FairData
                             init_para_alg="void",
                             log_opts=log_opts2)
     predict_all_circuits(FairPC, result_circuits, log_opts2, train_x, valid_x, test_x)
-
+    # update K for missing Df
+    predict_all_se(FairPC, result_circuits, log_opts2, train_x1, convert_k(k_3), "3_l")
+    predict_all_se(FairPC, result_circuits, log_opts2, train_x1, convert_k(k_4), "4_l")
+    predict_all_se(FairPC, result_circuits, log_opts2, train_x1, convert_k(k_5), "5_l")
        
     return result_circuits, results
 end
