@@ -27,6 +27,6 @@ def get_analysis(k_list, n_samples):
             t2 = df_lat.iloc[(35*idx):35*(idx+1)-1]
             vals.loc[idx] = [list(instances.iloc[idx][:]),t1[0].mean(),t1[0].std(),t2[0].mean(),t2[0].std()]
 
-        vals.to_csv(f'data/{k}_analysis.csv', index=False)
+        vals.to_csv(f'{dir}/analysis/data/{k}_analysis.csv', index=False)
 
 get_analysis([3,4,5],50)
