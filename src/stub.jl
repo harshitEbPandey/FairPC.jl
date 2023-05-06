@@ -82,7 +82,7 @@ function predict_all_se(T, result_circuits, log_opts, train_x, test_x, flag)
             mkpath(dir)
         end
         run_fairpc = T(pc, vtree, train_x.S, train_x.D)
-        predict_wrapper(run_fairpc,test_x,flag)
+        predition_bottom(run_fairpc,test_x,flag)
     end
 end
 
@@ -107,6 +107,6 @@ function predition_bottom(fairpc::StructType, fairdata, flag)
     results["P(D|e)"] = P_D
     results["D"] = Int8.(actual_label)
     results["S"] = Int8.(sensitive_label)
-    CSV.write("/Users/sauravanchlia/Fair_ML/PRL/prod/FairPC.jl/analysis/data/result/$(flag)_csv", results)
+    CSV.write("$(flag)_csv", results)
 
 end
