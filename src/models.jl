@@ -34,9 +34,10 @@ function model_fair_psdd(::Type{FairPC}, train_x::FairDataset, valid_x::FairData
     # for sampled instanes:
     # generate dataset for a given K - k times
     # marginal_flows query -> save out put to a unique PREDICT_EXAMPLE_HEADER
-    # 
-    
-
+    k_3, k_4, k_5 = get_query(train_x1)
+    predict_all_se(NlatPC, nlat_result_circuits, log_opts, train_x1, k_3, "3")
+    println("Done:39")
+    exit()
     # parameter learning
     train_x2, valid_x2, test_x2 = convert2latent(train_x, valid_x, test_x)
     pc, vtree = reload_learned_pc(nlat_results, "max-ll"; opts=log_opts1, name=train_x.name)
